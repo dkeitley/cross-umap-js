@@ -6,7 +6,6 @@
 		<title>3D UMAPs</title>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-		<link type="text/css" rel="stylesheet" href="main.css">
 		<style>
 			* {
 				box-sizing: border-box;
@@ -68,17 +67,21 @@
 
 		<script type="module">
 
+			// Load javascript libraries
 			import * as THREE from './js/three.module.js';
 			import { OrbitControls } from './js/OrbitControls.js';
 
 			let canvas, renderer, rabbit_points;
 
 			const scenes = [];
+
 			const raycaster = new THREE.Raycaster();
-			raycaster.params.Points.threshold = 10;
+			raycaster.params.Points.threshold = 0.002;
 
 			const pointer = new THREE.Vector2();
 
+
+			var rabbit_container;
 			const rabbit_positions = [];
 			const rabbit_colours = [];
 			const rabbit_celltypes = [];
@@ -87,7 +90,7 @@
 			const colour = new THREE.Color();
 
 			
-
+			var mouse_container;
 			const mouse_positions = [];
 			const mouse_colours = [];
 			const mouse_celltypes = [];
@@ -181,6 +184,8 @@
 
 					// Add rabbit or mouse points to scene
 					if(i==0) {
+
+						rabbit_container = sceneElement;
 						rabbit_umap.then(rabbit_umap => {
 							const geometry = new THREE.BufferGeometry();
 							geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( rabbit_positions, 3 ) );
@@ -199,12 +204,14 @@
 							const light = new THREE.DirectionalLight( 0xffffff, 0.5 );
 							light.position.set( 1, 1, 1 );
 							scene.add( light );
+							scene.background = new THREE.Color( 0xffffff );
 
 							scenes.push( scene );
 
 						});
 
 					} else {
+						mouse_container = sceneElement;
 						mouse_umap.then(mouse_umap => {
 							const geometry = new THREE.BufferGeometry();
 							geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( mouse_positions, 3 ) );
@@ -212,19 +219,57 @@
 							geometry.computeBoundingSphere();
 							const material = new THREE.PointsMaterial( { size:0.05, vertexColors:true,opacity:0.6 } );
 							const points = new THREE.Points(geometry,material);
+							points.castShadow = true; // default
+							points.receiveShadow = false;
 							scene.add( points );
 
-							scene.add( new THREE.HemisphereLight( 0xaaaaaa, 0x444444 ) );
+							//scene.add( new THREE.HemisphereLight( 0xaaaaaa, 0x444444 ) );
 
-							const light = new THREE.DirectionalLight( 0xffffff, 0.5 );
-							light.position.set( 1, 1, 1 );
-							scene.add( light );
+							
+							const light = new THREE.DirectionalLight(0xdfebff, 1);
+							light.position.set(12, 16, 2);
+							//light.position.multiplyScalar(1.3);
+							light.castShadow = true;
+							scene.add(light);
+
+							light.shadowCameraVisible = true;
+
+							light.shadow.mapSize.width = 512;
+							light.shadow.mapSize.height = 512;
+
+							var d = 200;
+
+							
+
+							light.shadow.camera.far = 500;
+							light.shadow.camera.near = 0.5;
+
+							
+
+							scene.background = new THREE.Color( 0xffffff );
+
+							
+							//Create a plane that receives shadows (but does not cast them)
+							const planeGeometry = new THREE.PlaneGeometry( 1000, 1000, 10, 10 );
+							const planeMaterial = new THREE.MeshStandardMaterial( { color: 0xffffff  } )
+							const plane = new THREE.Mesh( planeGeometry, planeMaterial );
+							plane.rotation.x = -Math.PI / 2;
+							plane.position.y = -15;
+							plane.opacity = 0.2;
+							plane.receiveShadow = true;
+							plane.castShadow = false;
+							scene.add( plane );
+							
+
+							const helper = new THREE.CameraHelper( light.shadow.camera );
+							scene.add( helper );
 
 							scenes.push( scene );
 
 						});
 
 					}
+
 					
 				};
 				
@@ -232,6 +277,8 @@
 				renderer = new THREE.WebGLRenderer( { canvas: canvas, antialias: true } );
 				renderer.setClearColor( 0xffffff, 1 );
 				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.shadowMap.enabled = true;
+				renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 			}
 
@@ -255,38 +302,20 @@
 				pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
 				pointer.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
 				
-				pointer.x = ((event.clientX - $container.offset().left) /$container.width() ) * 2 - 1;
-				pointer.y =  -(((event.clientY - $container.offset().top) / $container.innerHeight() ) * 2 - 1);
-				console.log('x: ' + mouse.x+ '|    y:'+ mouse.y);
-
-
-
-				// Only raycast if not panning (optimization)
-				var hits;
 				
+				console.log('x: ' + event.clientX + '|    y:'+ event.clientY);
+				console.log('pointer.x: ' + pointer.x+ '|    pointer.y:'+ pointer.y);
+
+
 				raycaster.setFromCamera(pointer, scenes[0].userData.camera);
 
 				// Raycast to single object
-				hits = raycaster.intersectObject(rabbit_points, false);
-
-				// Raycast to multiple objects
-				// hits = raygun.intersectObjects([myTargetObect, myTargetObect2]);
-				
-
+				var hits = raycaster.intersectObject(rabbit_points, false);
 
 				// Run if we have intersections
 				if (hits.length > 0) {
-					var colors = rabbit_points.geometry.attributes.color;
-					console.log(rabbit_points);
-					console.log(rabbit_points.geometry.attributes.color);
-					console.log(hits[0]);
-					console.log(rabbit_points.geometry.attributes.color.array[hits[0].index]);
-
 					var index = hits[0].index;
 					rabbit_points.geometry.attributes.color.setXYZ(index, Math.random(), Math.random(), Math.random()); 
-					//rabbit_points.geometry.attributes.color.array[index] = 1
-					//rabbit_points.geometry.attributes.color.array[index++] = 1
-					//rabbit_points.geometry.attributes.color.array[index++] = 1
 					
 				 renderer.render(scenes[0], scenes[0].userData.camera);
 				}
@@ -296,14 +325,10 @@
 
 
 			function animate() {
-
 				Promise.all([rabbit_umap,mouse_umap]).then((values) => {
 					window.addEventListener('click', onClick, false);
 				});
 				requestAnimationFrame( animate );
-
-
-				//rabbit_points.geometry.attributes.color.needsUpdate = true;
 				render();
 
 
@@ -313,7 +338,6 @@
 			function render() {
 
 				updateSize();
-
 				canvas.style.transform = `translateY(${window.scrollY}px)`;
 
 				renderer.setClearColor( 0xffffff );
@@ -323,10 +347,14 @@
 				renderer.setClearColor( 0x000000 );
 				renderer.setScissorTest( true );
 
+
+				// Test colour changes
+				/*
 				for ( let i = 0; i < 100000; i ++ ) {
 					//rabbit_points.geometry.attributes.color.setXYZ(i, Math.random(), Math.random(), Math.random()); 
 				}
 				rabbit_points.geometry.attributes.color.needsUpdate=true;
+				*/
 
 
 				scenes.forEach( function ( scene ) {
