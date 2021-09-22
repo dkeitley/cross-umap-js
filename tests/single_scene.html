@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>My first three.js app</title>
+		<style>
+			body { margin: 0; }
+		</style>
+	</head>
+	<body>
+		<script src="https://d3js.org/d3.v7.min.js"></script>
+
+		<script type="module">
+			import * as THREE from './js/three.module.js';
+			import { OrbitControls } from './js/OrbitControls.js';
+
+
+
+			const scene = new THREE.Scene();
+			const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+			const renderer = new THREE.WebGLRenderer();
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			document.body.appendChild( renderer.domElement );
+
+
+			const rabbit_positions = [];
+			const rabbit_colours = [];
+			const rabbit_celltypes = [];
+			const rabbit_stages = [];
+
+			const mouse_positions = [];
+
+
+			const colour = new THREE.Color();
+
+			const rabbit_umap = d3.csv("data/rabbit_5k_umap_3d.csv").then(data => {
+				data.forEach(d => {
+					d.umapX = Number(d.umapX);
+					d.umapY = Number(d.umapY);
+					d.umapZ = Number(d.umapZ);
+
+					d.colour = d.colour;
+					d.celltype = d.celltype;
+
+					colour.set(d.colour);
+					rabbit_positions.push(d.umapX-15,d.umapY,d.umapZ);
+					rabbit_celltypes.push(d.celltype);
+					rabbit_stages.push(d.stage);
+					rabbit_colours.push(colour.r,colour.g,colour.b);
+
+					mouse_positions.push(d.umapX+15,d.umapY,d.umapZ);
+
+
+
+				});
+				
+
+				console.log(rabbit_colours);
+
+				const geometry = new THREE.BufferGeometry();
+				geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( rabbit_positions, 3 ) );
+				geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( rabbit_colours, 3 ) );
+
+				geometry.computeBoundingSphere();
+
+				const geometryA = new THREE.BufferGeometry();;
+				geometryA.setAttribute( 'position', new THREE.Float32BufferAttribute( mouse_positions	, 3 ) );
+				geometryA.setAttribute( 'color', new THREE.Float32BufferAttribute( rabbit_colours, 3 ) );
+
+				geometryA.computeBoundingSphere();
+
+				const material = new THREE.PointsMaterial( { size:0.1, vertexColors:true } );
+
+				const points = new THREE.Points(geometry,material);
+				const pointsA = new THREE.Points(geometryA,material);
+
+
+				scene.add( points );
+				scene.add( pointsA );
+
+
+
+				camera.position.z = 30;
+				scene.userData.camera = camera;
+
+				const controls = new OrbitControls( camera, renderer.domElement );
+				scene.userData.controls = controls;
+
+				const animate = function () {
+					requestAnimationFrame( animate );
+
+					const time = Date.now() * 0.001;
+					//points.rotation.y = time * 0.5;
+					//pointsA.rotation.y = time * 0.5;
+
+					renderer.render( scene, camera );
+				};
+
+				animate();
+
+
+			
+
+			});
+
+
+
+			
+
+
+			
+
+		</script>
+	</body>
+</html>

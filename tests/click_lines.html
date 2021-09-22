@@ -28,7 +28,7 @@
 
 			let r_points;
 			let m_points;
-
+			
 			const r_ids = [];
 			const r_positions = [];
 
@@ -36,28 +36,17 @@
 			const m_positions = [];
 
 			const mnns = [];
-			const lines = [];
-
-			let r_selected;
 
 			const colour = new THREE.Color();
 
 
 			function init() {
 
-
 				// Simulate mouse cells
 				for(let i=0; i< 100; i++){
 					m_ids.push("m_" + i);
 					m_positions.push(20 + 10*Math.random(), 10*Math.random(), 10*Math.random())
 				}
-
-				const m_geometry = new THREE.BufferGeometry();
-				m_geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( m_positions, 3 ) );
-				m_geometry.computeBoundingSphere();
-				const m_material = new THREE.PointsMaterial( { size:1} );
-				m_points = new THREE.Points(m_geometry,m_material);
-
 
 				// Simulate rabbit cells and their MNNs
 				for(let i=0; i< 100; i++){
@@ -72,34 +61,17 @@
 					var r_mnns = {r_index: i, mnns:[] };
 					var m_neighbours = [];
 
-					var line_geometry = new THREE.BufferGeometry();
-					const line = new THREE.Line(
-				    	line_geometry,
-				    	new THREE.LineBasicMaterial({ color: 0xffff99 })
-				 	);
-
-					const line_points = [];
-
 					// Simulate rabbit mnns
 					for(let j=0; j < 3; j ++) {
 						var m_cell = Math.floor(Math.random() * 100);
 						m_neighbours.push(m_cell);
-
-						line_points.push(new THREE.Vector3(rX,rY,rZ));
-						line_points.push(new THREE.Vector3(m_points.geometry.attributes.position.getX(m_cell),
-						m_points.geometry.attributes.position.getY(m_cell),m_points.geometry.attributes.position.getZ(m_cell)));
-						line_geometry.setFromPoints(line_points);
 					}
-
-					line_geometry.verticesNeedUpdate = true;
-					line.visible = false;
-					lines.push(line);
-					scene.add(line);
-				
 
 					r_mnns.mnns = m_neighbours;
 					mnns.push(r_mnns);
 				}
+
+				console.log(mnns);
 
 
 				const geometry = new THREE.BufferGeometry();
@@ -108,12 +80,43 @@
 				const material = new THREE.PointsMaterial( { size:1} );
 				const points = new THREE.Points(geometry,material);
 
-				
+				const m_geometry = new THREE.BufferGeometry();
+				m_geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( m_positions, 3 ) );
+				m_geometry.computeBoundingSphere();
+				const m_material = new THREE.PointsMaterial( { size:1} );
+				m_points = new THREE.Points(m_geometry,m_material);
+
+				console.log(points);
+
 				r_points = points;
 				scene.add( points );
 				scene.add( m_points );
 
-					
+				var line_geometry = new THREE.BufferGeometry();
+
+				const line = new THREE.Line(
+				    line_geometry,
+				    new THREE.LineBasicMaterial({ color: 0xffff99 })
+				 );
+
+				const line_points = [];
+				
+				/*
+				for(let j=0; j < 20; j ++) {
+					var r_cell = Math.floor(Math.random() * 100);
+					var m_cell = Math.floor(Math.random() * 100);
+					line_points.push(new THREE.Vector3(points.geometry.attributes.position.getX(r_cell),
+						points.geometry.attributes.position.getY(r_cell),points.geometry.attributes.position.getZ(r_cell)))
+					line_points.push(new THREE.Vector3(m_points.geometry.attributes.position.getX(m_cell),
+						m_points.geometry.attributes.position.getY(m_cell),m_points.geometry.attributes.position.getZ(m_cell)))
+				}
+				line_geometry.setFromPoints(line_points);
+				line_geometry.verticesNeedUpdate = true;
+				console.log(line_points);
+
+				scene.add(line);
+				*/
+
 				camera.position.z = 30;
 				scene.userData.camera = camera;
 
@@ -124,13 +127,11 @@
 
 			
 
-			// Raycast when we click the mouse
-			function onHover(event) {
+				// Raycast when we click the mouse
+			function onClick(event) {
 				event.preventDefault();
 
-				if(r_selected) {
-					lines[r_selected].visible = false;
-				}
+				console.log("Click event");
 
 				pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
 				pointer.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
@@ -151,12 +152,34 @@
 
 					// Get lines associated with point
 					var index = hits[0].index;
+					console.log(index);
 					var cellX = r_points.geometry.attributes.position.getX(index);
 					var cellY = r_points.geometry.attributes.position.getY(index);
 					var cellZ = r_points.geometry.attributes.position.getZ(index);
 
-					lines[index].visible = true;
-					r_selected = index;
+					console.log(cellX);
+
+
+					var line_geometry = new THREE.BufferGeometry();
+
+					const line = new THREE.Line(
+				    	line_geometry,
+				    	new THREE.LineBasicMaterial({ color: 0xffff99 })
+				 	);
+
+					const line_points = [];
+					for(var mnn in mnns[index].mnns) {
+						line_points.push(new THREE.Vector3(cellX,cellY,cellZ));
+						line_points.push(new THREE.Vector3(m_points.geometry.attributes.position.getX(mnn),
+							m_points.geometry.attributes.position.getY(mnn),m_points.geometry.attributes.position.getZ(mnn)))
+						line_geometry.setFromPoints(line_points);
+
+					}
+					line_geometry.verticesNeedUpdate = true;
+					scene.add(line);
+					
+
+					
 
 					
 				 renderer.render(scene, scene.userData.camera);
@@ -166,13 +189,19 @@
 
 			const animate = function () {
 				requestAnimationFrame( animate );
-				window.addEventListener('mousemove', onHover, false);
+				window.addEventListener('click', onClick, false);
 				renderer.render( scene, camera );
 			};
 
 
 			init();
 			animate();
+			//window.addEventListener( 'mousedown', onClick, false );
+			
+
+
+			
+
 			
 
 		</script>
