@@ -1,0 +1,415 @@
+
+  
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>3D UMAPs</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			* {
+				box-sizing: border-box;
+				-moz-box-sizing: border-box;
+			}
+
+			body {
+				background-color: #fff;
+				color: #444;
+			}
+
+			a {
+				color: #08f;
+			}
+
+			#content {
+				position: absolute;
+				top: 0; width: 100%;
+				z-index: 1;
+				padding: 3em 0 0 0;
+			}
+
+			#c {
+				position: absolute;
+				left: 0;
+				width: 100%;
+				height: 100%;
+			}
+
+			.list-item {
+				display: inline-block;
+				margin: 0em;
+				padding: 1em;
+				box-shadow: 1px 2px 4px 0px rgba(0,0,0,0.25);
+			}
+
+			.list-item > div:nth-child(1) {
+				width: 500px;
+				height: 500px;
+			}
+
+			.list-item > div:nth-child(2) {
+				color: #888;
+				font-family: sans-serif;
+				font-size: large;
+				width: 500px;
+				margin-top: 0.5em;
+			}
+		</style>
+	</head>
+	<body>
+
+		<canvas id="c"></canvas>
+
+		<div id="content">
+
+		</div>
+		<script src="https://d3js.org/d3.v7.min.js"></script>
+
+		<script type="module">
+
+			// Load javascript libraries
+			import * as THREE from './js/three.module.js';
+			import { OrbitControls } from './js/OrbitControls.js';
+
+			let canvas, renderer, rabbit_points;
+
+			const scenes = [];
+
+			const raycaster = new THREE.Raycaster();
+			raycaster.params.Points.threshold = 0.002;
+
+			const pointer = new THREE.Vector2();
+
+
+			var rabbit_container;
+			const rabbit_positions = [];
+			const rabbit_colours = [];
+			const rabbit_celltypes = [];
+			const rabbit_stages = [];
+
+			const colour = new THREE.Color();
+
+			
+			var mouse_container;
+			const mouse_positions = [];
+			const mouse_colours = [];
+			const mouse_celltypes = [];
+			const mouse_stages = [];
+
+
+			// Load rabbit umap
+			const rabbit_umap = d3.tsv("data/umap_3d.tsv").then(data => {
+				data.forEach(d => {
+					// May need cell_id to recognise MNNs
+
+					d.umapX = Number(d.umapX);
+					d.umapY = Number(d.umapY);
+					d.umapZ = Number(d.umapZ);
+
+					d.colour = d.colour;
+					d.celltype = d.celltype;
+
+					colour.set(d.colour);
+					rabbit_positions.push(d.umapX,d.umapY,d.umapZ);
+					rabbit_celltypes.push(d.celltype);
+					rabbit_stages.push(d.stage);
+					rabbit_colours.push(colour.r,colour.g,colour.b);
+
+
+				});
+			});
+
+			// Load mouse umap
+			const mouse_umap = d3.tsv("data/mouse_ext_data.tsv").then(data => {
+					data.forEach(d => {
+						d.umapX = Number(d.umapX);
+						d.umapY = Number(d.umapY);
+						d.umapZ = Number(d.umapZ);
+
+						d.colour = d.colour;
+						d.celltype = d.celltype;
+
+						colour.set(d.colour);
+						mouse_positions.push(d.umapX,d.umapY,d.umapZ);
+						mouse_celltypes.push(d.celltype);
+						mouse_stages.push(d.stage);
+						mouse_colours.push(colour.r,colour.g,colour.b);
+
+
+					});
+				});
+
+			init();
+			animate();
+
+
+			function init() {
+
+				canvas = document.getElementById( "c" );
+				const content = document.getElementById( 'content' );
+
+				const labels = ["Rabbit","Mouse"];
+
+				// Create two scenes with UMAP in each one
+				for ( let i = 0; i < 2; i ++ ) {
+
+					const scene = new THREE.Scene();
+
+					// make a list item
+					const element = document.createElement( 'div' );
+					element.className = 'list-item';
+
+					const sceneElement = document.createElement( 'div' );
+					element.appendChild( sceneElement );
+
+					const descriptionElement = document.createElement( 'div' );
+					descriptionElement.innerText = labels[i];
+					element.appendChild( descriptionElement );
+
+					// the element that represents the area we want to render the scene
+					scene.userData.element = sceneElement;
+					content.appendChild( element );
+
+					const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+			
+					camera.position.x = 10;
+					camera.position.y = 20;
+					camera.position.z = 25;
+
+					scene.userData.camera = camera;
+
+					const controls = new OrbitControls( scene.userData.camera, scene.userData.element );
+					
+					scene.userData.controls = controls;
+
+					// Add rabbit or mouse points to scene
+					if(i==0) {
+
+						rabbit_container = sceneElement;
+						rabbit_umap.then(rabbit_umap => {
+							const geometry = new THREE.BufferGeometry();
+							geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( rabbit_positions, 3 ) );
+							geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( rabbit_colours, 3 ) );
+							geometry.computeBoundingSphere();
+
+							
+							const material = new THREE.PointsMaterial( { size:0.075, vertexColors:true,opacity:0.6 } );
+							const points = new THREE.Points(geometry,material);
+							scene.add( points );
+
+							rabbit_points = points;
+
+							scene.add( new THREE.HemisphereLight( 0xaaaaaa, 0x444444 ) );
+
+							const light = new THREE.DirectionalLight( 0xffffff, 0.5 );
+							light.position.set( 1, 1, 1 );
+							scene.add( light );
+							scene.background = new THREE.Color( 0xffffff );
+
+							scenes.push( scene );
+
+						});
+
+					} else {
+						mouse_container = sceneElement;
+						mouse_umap.then(mouse_umap => {
+							const geometry = new THREE.BufferGeometry();
+							geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( mouse_positions, 3 ) );
+							geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( mouse_colours, 3 ) );
+							geometry.computeBoundingSphere();
+							const material = new THREE.PointsMaterial( { size:0.05, vertexColors:true,opacity:0.6 } );
+							const points = new THREE.Points(geometry,material);
+							points.castShadow = true; // default
+							points.receiveShadow = false;
+							scene.add( points );
+
+							//scene.add( new THREE.HemisphereLight( 0xaaaaaa, 0x444444 ) );
+
+							
+							const light = new THREE.DirectionalLight(0xdfebff, 1);
+							light.position.set(12, 16, 2);
+							//light.position.multiplyScalar(1.3);
+							light.castShadow = true;
+							scene.add(light);
+
+							light.shadowCameraVisible = true;
+
+							light.shadow.mapSize.width = 512;
+							light.shadow.mapSize.height = 512;
+
+							var d = 200;
+
+							
+
+							light.shadow.camera.far = 500;
+							light.shadow.camera.near = 0.5;
+
+							
+
+							scene.background = new THREE.Color( 0xffffff );
+
+							
+							//Create a plane that receives shadows (but does not cast them)
+							const planeGeometry = new THREE.PlaneGeometry( 1000, 1000, 10, 10 );
+							const planeMaterial = new THREE.MeshStandardMaterial( { color: 0xffffff  } )
+							const plane = new THREE.Mesh( planeGeometry, planeMaterial );
+							plane.rotation.x = -Math.PI / 2;
+							plane.position.y = -15;
+							plane.opacity = 0.2;
+							plane.receiveShadow = true;
+							plane.castShadow = false;
+							scene.add( plane );
+							
+
+							const helper = new THREE.CameraHelper( light.shadow.camera );
+							scene.add( helper );
+
+							scenes.push( scene );
+
+						});
+
+					}
+
+					
+				};
+				
+
+				renderer = new THREE.WebGLRenderer( { canvas: canvas, antialias: true } );
+				renderer.setClearColor( 0xffffff, 1 );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.shadowMap.enabled = true;
+				renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+			}
+
+			function updateSize() {
+				const width = canvas.clientWidth;
+				const height = canvas.clientHeight;
+
+				if ( canvas.width !== width || canvas.height !== height ) {
+					renderer.setSize( width, height, false );
+				}
+
+			}
+
+			// Raycast when we click the mouse
+			function onClick(event) {
+				event.preventDefault();
+
+				console.log("Click event");
+
+				// Get mouse position in screen space
+				pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+				pointer.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+				
+				
+				console.log('x: ' + event.clientX + '|    y:'+ event.clientY);
+				console.log('pointer.x: ' + pointer.x+ '|    pointer.y:'+ pointer.y);
+
+
+				raycaster.setFromCamera(pointer, scenes[0].userData.camera);
+
+				// Raycast to single object
+				var hits = raycaster.intersectObject(rabbit_points, false);
+
+				// Run if we have intersections
+				if (hits.length > 0) {
+					var index = hits[0].index;
+					rabbit_points.geometry.attributes.color.setXYZ(index, Math.random(), Math.random(), Math.random()); 
+					
+				 renderer.render(scenes[0], scenes[0].userData.camera);
+				}
+			}
+
+			
+
+
+			function animate() {
+				Promise.all([rabbit_umap,mouse_umap]).then((values) => {
+					window.addEventListener('click', onClick, false);
+				});
+				requestAnimationFrame( animate );
+				render();
+
+
+
+			}
+
+			function render() {
+
+				updateSize();
+				canvas.style.transform = `translateY(${window.scrollY}px)`;
+
+				renderer.setClearColor( 0xffffff );
+				renderer.setScissorTest( false );
+				renderer.clear();
+
+				renderer.setClearColor( 0x000000 );
+				renderer.setScissorTest( true );
+
+
+				// Test colour changes
+				/*
+				for ( let i = 0; i < 100000; i ++ ) {
+					//rabbit_points.geometry.attributes.color.setXYZ(i, Math.random(), Math.random(), Math.random()); 
+				}
+				rabbit_points.geometry.attributes.color.needsUpdate=true;
+				*/
+
+
+				scenes.forEach( function ( scene ) {
+
+					//console.log(scene.children[0]);
+
+					// so something moves
+
+					//Promise.all([rabbit_umap,mouse_umap]).then((values) => {
+					//scene.children[ 0 ].rotation.y = Date.now() * 0.0002;
+					//})
+					
+
+					// get the element that is a place holder for where we want to
+					// draw the scene
+					const element = scene.userData.element;
+
+					// get its position relative to the page's viewport
+					const rect = element.getBoundingClientRect();
+
+					// check if it's offscreen. If so skip it
+					if ( rect.bottom < 0 || rect.top > renderer.domElement.clientHeight ||
+						 rect.right < 0 || rect.left > renderer.domElement.clientWidth ) {
+
+						return; // it's off screen
+
+					}
+
+					// set the viewport
+					const width = rect.right - rect.left;
+					const height = rect.bottom - rect.top;
+					const left = rect.left;
+					const bottom = renderer.domElement.clientHeight - rect.bottom;
+
+					renderer.setViewport( left, bottom, width, height );
+					renderer.setScissor( left, bottom, width, height );
+
+					const camera = scene.userData.camera;
+
+
+					//camera.aspect = width / height; // not changing in this example
+					//camera.updateProjectionMatrix();
+
+					//scene.userData.controls.update();
+
+					renderer.render( scene, camera );
+
+				} );
+
+			}
+			window.addEventListener( 'mousedown', onClick, false );
+
+
+
+		</script>
+
+	</body>
+</html>

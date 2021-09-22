@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>My first three.js app</title>
+		<style>
+			body { margin: 0; }
+		</style>
+	</head>
+	<body>
+		<script src="https://d3js.org/d3.v7.min.js"></script>
+
+		<script type="module">
+			import * as THREE from './js/three.module.js';
+			import { OrbitControls } from './js/OrbitControls.js';
+
+
+
+			const scene = new THREE.Scene();
+			const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+			const renderer = new THREE.WebGLRenderer();
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			document.body.appendChild( renderer.domElement );
+
+			const r_ids = [];
+			const r_positions = [];
+
+			const m_ids = [];
+			const m_positions = [];
+		
+
+			const colour = new THREE.Color();
+
+			for(let i=0; i< 100; i++){
+				r_ids.push("r_" + i);
+				r_positions.push(10*Math.random(), 10*Math.random(), 10*Math.random())
+			}
+
+			for(let i=0; i< 100; i++){
+				m_ids.push("m_" + i);
+				m_positions.push(20 + 10*Math.random(), 10*Math.random(), 10*Math.random())
+			}
+
+
+				const geometry = new THREE.BufferGeometry();
+				geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( r_positions, 3 ) );
+				geometry.computeBoundingSphere();
+				const material = new THREE.PointsMaterial( { size:1} );
+				const points = new THREE.Points(geometry,material);
+
+				const m_geometry = new THREE.BufferGeometry();
+				m_geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( m_positions, 3 ) );
+				m_geometry.computeBoundingSphere();
+				const m_material = new THREE.PointsMaterial( { size:1} );
+				const m_points = new THREE.Points(m_geometry,m_material);
+
+				console.log(points);
+
+				scene.add( points );
+				scene.add( m_points );
+
+				var line_geometry = new THREE.BufferGeometry();
+
+				const line = new THREE.Line(
+				    line_geometry,
+				    new THREE.LineBasicMaterial({ color: 0xffff99 })
+				 );
+
+				const line_points = [];
+				for(let j=0; j < 20; j ++) {
+					var r_cell = Math.floor(Math.random() * 100);
+					var m_cell = Math.floor(Math.random() * 100);
+					line_points.push(new THREE.Vector3(points.geometry.attributes.position.getX(r_cell),
+						points.geometry.attributes.position.getY(r_cell),points.geometry.attributes.position.getZ(r_cell)))
+					line_points.push(new THREE.Vector3(m_points.geometry.attributes.position.getX(m_cell),
+						m_points.geometry.attributes.position.getY(m_cell),m_points.geometry.attributes.position.getZ(m_cell)))
+					console.log();
+					line_geometry.setFromPoints(line_points);
+				}
+				line_geometry.verticesNeedUpdate = true;
+
+
+				scene.add(line);
+
+
+				
+
+				
+
+				
+
+
+
+				camera.position.z = 30;
+				scene.userData.camera = camera;
+
+				const controls = new OrbitControls( camera, renderer.domElement );
+				scene.userData.controls = controls;
+
+				const animate = function () {
+					requestAnimationFrame( animate );
+
+					const time = Date.now() * 0.001;
+					//points.rotation.y = time * 0.5;
+					//pointsA.rotation.y = time * 0.5;
+
+					renderer.render( scene, camera );
+				};
+
+				animate();
+
+
+			
+
+			
+
+
+			
+
+
+			
+
+		</script>
+	</body>
+</html>
+
+
+
+<!DOCTYPE html>
