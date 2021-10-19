@@ -24,16 +24,21 @@
 			const pointer = new THREE.Vector2();
 
 			const raycaster = new THREE.Raycaster();
-			raycaster.params.Points.threshold = 1;
+			raycaster.params.Points.threshold = 0.1;
 
 			let r_points;
 			let m_points;
 
 			const r_ids = [];
 			const r_positions = [];
+			const r_colours = [];
 
 			const m_ids = [];
 			const m_positions = [];
+			const m_colours = [];
+
+			let nhood_sim;
+
 
 			const mnns = [];
 			const lines = [];
@@ -41,79 +46,113 @@
 			let r_selected;
 
 			const colour = new THREE.Color();
+			const viridis_scale = d3.scaleSequential().domain([0,1])
+  							.interpolator(d3.interpolateViridis);
 
 
 			function init() {
 
 
-				// Simulate mouse cells
-				for(let i=0; i< 100; i++){
-					m_ids.push("m_" + i);
-					m_positions.push(20 + 10*Math.random(), 10*Math.random(), 10*Math.random())
-				}
+				// Load rabbit nhoods
+				const r_data = d3.tsv("data/rabbit_nhoods.tsv").then(data => {
+					data.forEach(d => {
+						d.umapX = Number(d.umapX);
+						d.umapY = Number(d.umapY);
+						d.umapZ = Number(d.umapZ);
 
-				const m_geometry = new THREE.BufferGeometry();
-				m_geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( m_positions, 3 ) );
-				m_geometry.computeBoundingSphere();
-				const m_material = new THREE.PointsMaterial( { size:1} );
-				m_points = new THREE.Points(m_geometry,m_material);
+						d.colour = d.colour;
+						d.celltype = d.celltype;
 
+						colour.set(d.colour);
+						r_positions.push(d.umapX-20,d.umapY,d.umapZ);
+						//rabbit_celltypes.push(d.celltype);
+						r_colours.push(colour.r,colour.g,colour.b);
 
-				// Simulate rabbit cells and their MNNs
-				for(let i=0; i< 100; i++){
+					})
 
-					// Create rabbit cell
-					r_ids.push("r_" + i);
-					var rX = 10*Math.random();
-					var rY = 10*Math.random();
-					var rZ = 10*Math.random();
-
-					r_positions.push(rX,rY,rZ);
-					var r_mnns = {r_index: i, mnns:[] };
-					var m_neighbours = [];
-
-					var line_geometry = new THREE.BufferGeometry();
-					const line = new THREE.Line(
-				    	line_geometry,
-				    	new THREE.LineBasicMaterial({ color: 0xffff99 })
-				 	);
-
-					const line_points = [];
-
-					// Simulate rabbit mnns
-					for(let j=0; j < 3; j ++) {
-						var m_cell = Math.floor(Math.random() * 100);
-						m_neighbours.push(m_cell);
-
-						line_points.push(new THREE.Vector3(rX,rY,rZ));
-						line_points.push(new THREE.Vector3(m_points.geometry.attributes.position.getX(m_cell),
-						m_points.geometry.attributes.position.getY(m_cell),m_points.geometry.attributes.position.getZ(m_cell)));
-						line_geometry.setFromPoints(line_points);
-					}
-
-					line_geometry.verticesNeedUpdate = true;
-					line.visible = false;
-					lines.push(line);
-					scene.add(line);
-				
-
-					r_mnns.mnns = m_neighbours;
-					mnns.push(r_mnns);
-				}
+					const r_geometry = new THREE.BufferGeometry();
+					r_geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( r_positions, 3 ) );
+					r_geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( r_colours, 3 ) );
+					r_geometry.computeBoundingSphere();
+					const r_material = new THREE.PointsMaterial( { size:0.3,vertexColors:true} );
+					r_points = new THREE.Points(r_geometry,r_material);
+					scene.add( r_points );
 
 
-				const geometry = new THREE.BufferGeometry();
-				geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( r_positions, 3 ) );
-				geometry.computeBoundingSphere();
-				const material = new THREE.PointsMaterial( { size:1} );
-				const points = new THREE.Points(geometry,material);
+				});
 
-				
-				r_points = points;
-				scene.add( points );
-				scene.add( m_points );
 
+				// Load mouse nhoods
+				const m_data = d3.tsv("data/mouse_nhoods.tsv").then(data => {
+					data.forEach(d => {
+						d.umapX = Number(d.umapX);
+						d.umapY = Number(d.umapY);
+						d.umapZ = Number(d.umapZ);
+
+						d.colour = d.colour;
+						d.celltype = d.celltype;
+
+						colour.set(d.colour);
+						m_positions.push(d.umapX+20,d.umapY,d.umapZ);
+						m_colours.push(colour.r,colour.g,colour.b);
+
+					})
+
+					const m_geometry = new THREE.BufferGeometry();
+					m_geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( m_positions, 3 ) );
+					m_geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( m_colours, 3 ) );
+					m_geometry.computeBoundingSphere();
+					const m_material = new THREE.PointsMaterial( { size:0.3,vertexColors:true} );
+					m_points = new THREE.Points(m_geometry,m_material);
+					scene.add( m_points );
+
+
+				});
+
+
+				// Only after data loaded...
+				Promise.all([r_data,m_data]).then((values) => {
+					const load_sim = d3.json("data/nhood_sim.json").then(nhoods => {
+						console.log(nhoods);
+						var k=0
+						for(var key in nhoods) {
+							var nhood = nhoods[key];
+
+							const line_points = [];
+
+							var line_geometry = new THREE.BufferGeometry();
+							const line = new THREE.Line(
+					    		line_geometry,
+					    		new THREE.LineBasicMaterial({ color: 0xffff99 })
+					 		);
+
+							// For each neighbour neighbourhood
+							for(var i in nhood.index) {
+								var nn = nhood.index[i] -1;
+								line_points.push(new THREE.Vector3(r_points.geometry.attributes.position.getX(k),
+								r_points.geometry.attributes.position.getY(k),r_points.geometry.attributes.position.getZ(k)));
+
+								line_points.push(new THREE.Vector3(m_points.geometry.attributes.position.getX(nn),
+								m_points.geometry.attributes.position.getY(nn),m_points.geometry.attributes.position.getZ(nn)));
+								line_geometry.setFromPoints(line_points);
+
+							}
+
+							line_geometry.verticesNeedUpdate = true;
+							line.visible = false;
+							lines.push(line);
+							scene.add(line);
+
+							k = k + 1;
+
+						}
+
+					});
 					
+				});
+				
+
+			
 				camera.position.z = 30;
 				scene.userData.camera = camera;
 
@@ -127,6 +166,8 @@
 			// Raycast when we click the mouse
 			function onHover(event) {
 				event.preventDefault();
+
+				//console.log(r_points);
 
 				if(r_selected) {
 					lines[r_selected].visible = false;
@@ -143,7 +184,7 @@
 				hits = raycaster.intersectObject(r_points, false);
 
 				// Raycast to multiple objects
-				// hits = raygun.intersectObjects([myTargetObect, myTargetObect2]);
+				//hits = raygun.intersectObjects([myTargetObect, myTargetObect2]);
 				
 
 				// Run if we have intersections
