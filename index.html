@@ -14,13 +14,8 @@
 			import * as THREE from './js/three.module.js';
 			import { OrbitControls } from './js/OrbitControls.js';
 
+			let camera, scene, renderer;
 
-
-			const scene = new THREE.Scene();
-			const camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-			const renderer = new THREE.WebGLRenderer();
-			renderer.setSize( window.innerWidth, window.innerHeight );
-			document.body.appendChild( renderer.domElement );
 			const pointer = new THREE.Vector2();
 
 			const raycaster = new THREE.Raycaster();
@@ -52,6 +47,11 @@
 
 			function init() {
 
+				scene = new THREE.Scene();
+				camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+
+				const sprite = new THREE.TextureLoader().load( 'res/disc.png' );
+
 
 				// Load rabbit nhoods
 				const r_data = d3.tsv("data/rabbit_nhoods.tsv").then(data => {
@@ -74,7 +74,8 @@
 					r_geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( r_positions, 3 ) );
 					r_geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( r_colours, 3 ) );
 					r_geometry.computeBoundingSphere();
-					const r_material = new THREE.PointsMaterial( { size:0.3,vertexColors:true} );
+					//const r_material = new THREE.PointsMaterial( { size:0.3,vertexColors:true} );
+					const r_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,map:sprite,transparent: true,alphaTest: 0.8} );
 					r_points = new THREE.Points(r_geometry,r_material);
 					scene.add( r_points );
 
@@ -102,7 +103,8 @@
 					m_geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( m_positions, 3 ) );
 					m_geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( m_colours, 3 ) );
 					m_geometry.computeBoundingSphere();
-					const m_material = new THREE.PointsMaterial( { size:0.3,vertexColors:true} );
+					//const m_material = new THREE.PointsMaterial( { size:0.3,vertexColors:true} );
+					const m_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,map:sprite,transparent: true,alphaTest: 0.8} );
 					m_points = new THREE.Points(m_geometry,m_material);
 					scene.add( m_points );
 
@@ -151,7 +153,10 @@
 					
 				});
 				
-
+				renderer = new THREE.WebGLRenderer();
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				document.body.appendChild( renderer.domElement );
 			
 				camera.position.z = 30;
 				scene.userData.camera = camera;
