@@ -39,6 +39,7 @@
 			const lines = [];
 
 			let r_selected;
+			let r_clicked;
 
 			const colour = new THREE.Color();
 			const viridis_scale = d3.scaleSequential().domain([0,1])
@@ -46,6 +47,8 @@
 
 
 			function init() {
+
+				document.getElementById("clear_button").addEventListener ("click", deselect, false);
 
 				scene = new THREE.Scene();
 				camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
@@ -95,13 +98,15 @@
 
 						colour.set(d.colour);
 						m_positions.push(d.umapX+20,d.umapY,d.umapZ);
-						m_colours.push(colour.r,colour.g,colour.b);
+						m_colours.push(colour.r,colour.g,colour.b,1);
 
 					})
 
 					const m_geometry = new THREE.BufferGeometry();
 					m_geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( m_positions, 3 ) );
-					m_geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( m_colours, 3 ) );
+					m_geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( m_colours, 4 ) );
+
+
 					m_geometry.computeBoundingSphere();
 					//const m_material = new THREE.PointsMaterial( { size:0.3,vertexColors:true} );
 					const m_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,map:sprite,transparent: true,alphaTest: 0.8} );
@@ -115,7 +120,7 @@
 				// Only after data loaded...
 				Promise.all([r_data,m_data]).then((values) => {
 					const load_sim = d3.json("data/nhood_sim.json").then(nhoods => {
-						console.log(nhoods);
+						nhood_sim=nhoods;
 						var k=0
 						for(var key in nhoods) {
 							var nhood = nhoods[key];
@@ -123,9 +128,10 @@
 							const line_points = [];
 
 							var line_geometry = new THREE.BufferGeometry();
-							const line = new THREE.Line(
+							//line_geometry.setAttribute( 'color', new THREE.Float32BufferAttribute(,1 ) );
+							const line = new THREE.LineSegments(
 					    		line_geometry,
-					    		new THREE.LineBasicMaterial({ color: 0xffff99 })
+					    		new THREE.LineBasicMaterial()
 					 		);
 
 							// For each neighbour neighbourhood
@@ -174,12 +180,64 @@
 
 				//console.log(r_points);
 
+				if(!r_clicked) {
+
+					if(r_selected) {
+						lines[r_selected].visible = false;
+					}
+
+					pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+					pointer.y = - ((event.clientY - renderer.domElement.offsetTop)/ window.innerHeight ) * 2 + 1;
+
+					// Only raycast if not panning (optimization)
+					var hits;
+					raycaster.setFromCamera(pointer, scene.userData.camera);
+
+					// Raycast to single object
+					hits = raycaster.intersectObject(r_points, false);
+
+					// Raycast to multiple objects
+					//hits = raygun.intersectObjects([myTargetObect, myTargetObect2]);
+					
+
+					// Run if we have intersections
+					if (hits.length > 0) {
+
+						// Get lines associated with point
+						var index = hits[0].index;
+						var cellX = r_points.geometry.attributes.position.getX(index);
+						var cellY = r_points.geometry.attributes.position.getY(index);
+						var cellZ = r_points.geometry.attributes.position.getZ(index);
+
+						lines[index].visible = true;
+						var sim_index =  Object.keys(nhood_sim)[index];
+						var test = new THREE.Color(d3.interpolateViridis(nhood_sim[sim_index].sim[0]));
+						//consoleconsole.log(test);
+						//console.log(lines[index]);
+						//lines[index].geometry.attributes.color.setXYZ(test);
+						
+
+						
+						r_selected = index;
+
+						
+					 renderer.render(scene, scene.userData.camera);
+					}
+				}
+			}
+
+
+			function onClick(event) {
+				event.preventDefault();
+
+				console.log("On click...");
+
 				if(r_selected) {
 					lines[r_selected].visible = false;
 				}
 
 				pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-				pointer.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+				pointer.y = - ((event.clientY - renderer.domElement.offsetTop)/ window.innerHeight ) * 2 + 1;
 
 				// Only raycast if not panning (optimization)
 				var hits;
@@ -188,24 +246,33 @@
 				// Raycast to single object
 				hits = raycaster.intersectObject(r_points, false);
 
-				// Raycast to multiple objects
-				//hits = raygun.intersectObjects([myTargetObect, myTargetObect2]);
-				
 
 				// Run if we have intersections
 				if (hits.length > 0) {
 
+					
+
 					// Get lines associated with point
 					var index = hits[0].index;
-					var cellX = r_points.geometry.attributes.position.getX(index);
-					var cellY = r_points.geometry.attributes.position.getY(index);
-					var cellZ = r_points.geometry.attributes.position.getZ(index);
+
+					if(r_clicked & r_clicked!=index) {
+						lines[r_clicked].visible = false;
+					}
 
 					lines[index].visible = true;
-					r_selected = index;
+					r_clicked = index;
 
 					
 				 renderer.render(scene, scene.userData.camera);
+				}
+
+			}
+
+
+			function deselect() {
+				if(r_clicked) {
+					lines[r_clicked].visible = false;
+					r_clicked = undefined;
 				}
 			}
 
@@ -213,6 +280,7 @@
 			const animate = function () {
 				requestAnimationFrame( animate );
 				window.addEventListener('mousemove', onHover, false);
+				window.addEventListener('click', onClick, false);
 				renderer.render( scene, camera );
 			};
 
@@ -222,6 +290,8 @@
 			
 
 		</script>
+		<button type="button" id="clear_button">Clear</button>
+
 	</body>
 </html>
 
