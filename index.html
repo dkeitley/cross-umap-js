@@ -98,7 +98,7 @@
 
 						colour.set(d.colour);
 						m_positions.push(d.umapX+20,d.umapY,d.umapZ);
-						m_colours.push(colour.r,colour.g,colour.b,1);
+						m_colours.push(colour.r,colour.g,colour.b,0.2);
 
 					})
 
@@ -109,7 +109,7 @@
 
 					m_geometry.computeBoundingSphere();
 					//const m_material = new THREE.PointsMaterial( { size:0.3,vertexColors:true} );
-					const m_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,map:sprite,transparent: true,alphaTest: 0.8} );
+					const m_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,map:sprite,transparent: true,alphaTest: 0.2} );
 					m_points = new THREE.Points(m_geometry,m_material);
 					scene.add( m_points );
 
@@ -172,6 +172,21 @@
 
 			}
 
+
+			function changeOpacity(index,opacity) {
+				var r_nhood =  Object.keys(nhood_sim)[index];
+
+				for(var i in nhood_sim[r_nhood].index) {
+					var m_index = nhood_sim[r_nhood].index[i] - 1;
+					m_points.geometry.attributes.color.setXYZW(m_index, 
+						m_points.geometry.attributes.color.getX(m_index), 
+						m_points.geometry.attributes.color.getY(m_index), 
+						m_points.geometry.attributes.color.getZ(m_index),opacity); 
+				}
+						
+
+			}
+
 			
 
 			// Raycast when we click the mouse
@@ -184,6 +199,8 @@
 
 					if(r_selected) {
 						lines[r_selected].visible = false;
+						changeOpacity(r_selected, 0.2);
+					
 					}
 
 					pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
@@ -210,8 +227,12 @@
 						var cellZ = r_points.geometry.attributes.position.getZ(index);
 
 						lines[index].visible = true;
-						var sim_index =  Object.keys(nhood_sim)[index];
-						var test = new THREE.Color(d3.interpolateViridis(nhood_sim[sim_index].sim[0]));
+						changeOpacity(index,1);
+						
+
+
+
+						//var test = new THREE.Color(d3.interpolateViridis(nhood_sim[sim_index].sim[0]));
 						//consoleconsole.log(test);
 						//console.log(lines[index]);
 						//lines[index].geometry.attributes.color.setXYZ(test);
@@ -230,10 +251,9 @@
 			function onClick(event) {
 				event.preventDefault();
 
-				console.log("On click...");
-
-				if(r_selected) {
+				if(!r_clicked & r_selected) {
 					lines[r_selected].visible = false;
+					changeOpacity(r_selected,0.2);
 				}
 
 				pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
@@ -257,9 +277,11 @@
 
 					if(r_clicked & r_clicked!=index) {
 						lines[r_clicked].visible = false;
+						changeOpacity(r_clicked,0.2);
 					}
 
 					lines[index].visible = true;
+					changeOpacity(index,1);
 					r_clicked = index;
 
 					
@@ -272,6 +294,7 @@
 			function deselect() {
 				if(r_clicked) {
 					lines[r_clicked].visible = false;
+					changeOpacity(r_clicked,0.2);
 					r_clicked = undefined;
 				}
 			}
@@ -281,6 +304,7 @@
 				requestAnimationFrame( animate );
 				window.addEventListener('mousemove', onHover, false);
 				window.addEventListener('click', onClick, false);
+				m_points.geometry.attributes.color.needsUpdate = true;
 				renderer.render( scene, camera );
 			};
 
