@@ -13,6 +13,9 @@
 		<script type="module">
 			import * as THREE from './js/three.module.js';
 			import { OrbitControls } from './js/OrbitControls.js';
+			import { FontLoader } from './js/FontLoader.js';
+			import { TextGeometry } from './js/TextGeometry.js';
+
 
 			let camera, scene, renderer;
 
@@ -40,6 +43,11 @@
 
 			let r_selected;
 			let r_clicked;
+
+			const r_mean = [];
+			const m_mean = [];
+
+			const opacity_low = 0.2;
 
 			const colour = new THREE.Color();
 			const viridis_scale = d3.scaleSequential().domain([0,1])
@@ -73,12 +81,16 @@
 
 					})
 
+					r_mean.push(d3.mean(data, d => d.umapX)-20);
+					r_mean.push(d3.mean(data, d => d.umapY));
+					r_mean.push(d3.mean(data, d => d.umapZ));
+
 					const r_geometry = new THREE.BufferGeometry();
 					r_geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( r_positions, 3 ) );
 					r_geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( r_colours, 3 ) );
 					r_geometry.computeBoundingSphere();
 					//const r_material = new THREE.PointsMaterial( { size:0.3,vertexColors:true} );
-					const r_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,map:sprite,transparent: true,alphaTest: 0.8} );
+					const r_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,map:sprite,transparent: true,alphaTest: opacity_low} );
 					r_points = new THREE.Points(r_geometry,r_material);
 					scene.add( r_points );
 
@@ -98,9 +110,13 @@
 
 						colour.set(d.colour);
 						m_positions.push(d.umapX+20,d.umapY,d.umapZ);
-						m_colours.push(colour.r,colour.g,colour.b,0.2);
+						m_colours.push(colour.r,colour.g,colour.b,opacity_low);
 
 					})
+
+					m_mean.push(d3.mean(data, d => d.umapX)+20);
+					m_mean.push(d3.mean(data, d => d.umapY));
+					m_mean.push(d3.mean(data, d => d.umapZ));
 
 					const m_geometry = new THREE.BufferGeometry();
 					m_geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( m_positions, 3 ) );
@@ -109,7 +125,7 @@
 
 					m_geometry.computeBoundingSphere();
 					//const m_material = new THREE.PointsMaterial( { size:0.3,vertexColors:true} );
-					const m_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,map:sprite,transparent: true,alphaTest: 0.2} );
+					const m_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,map:sprite,transparent: true,alphaTest: 0.1} );
 					m_points = new THREE.Points(m_geometry,m_material);
 					scene.add( m_points );
 
@@ -158,6 +174,19 @@
 					});
 					
 				});
+
+
+				const light = new THREE.AmbientLight(0xffffff);
+				scene.add(light);
+				
+
+				Promise.all([r_data,m_data]).then((values) => {
+					console.log(r_mean);
+					loadFont("Rabbit", r_mean[0], 20, r_mean[2]);
+					loadFont("Mouse", m_mean[0]-2, 15, m_mean[2]);
+				})
+				
+				//createText("Rabbit", )
 				
 				renderer = new THREE.WebGLRenderer();
 				renderer.setPixelRatio( window.devicePixelRatio );
@@ -169,6 +198,47 @@
 
 				const controls = new OrbitControls( camera, renderer.domElement );
 				scene.userData.controls = controls;
+
+			}
+
+			function loadFont(text,x,y,z) {
+				const loader = new FontLoader();
+				loader.load( '/res/' + "helvetiker" + '_' + "regular" + '.typeface.json', function ( response ) {
+
+					var font = response;
+					console.log(font);
+					createText(text,x,y,z,font);
+
+					return(font)
+
+				} );
+
+			}
+
+
+			function createText(text,x,y,z,font) {
+
+				var text_geo = new TextGeometry( text ,{font:font,
+					size:2,
+					height: 0.5,
+					curveSegments: 4,
+
+					bevelEnabled: false});
+				text_geo.computeBoundingBox();
+				
+				var materials = [
+					new THREE.MeshPhongMaterial( { color: 0xfffffff, flatShading: true } ), // front
+					new THREE.MeshPhongMaterial( { color: 0x808080  } ) // side
+				];
+
+
+				var text_mesh = new THREE.Mesh( text_geo, materials );
+
+				text_mesh.position.x = x;
+				text_mesh.position.y = y;
+				text_mesh.position.z = z;
+
+				scene.add(text_mesh);
 
 			}
 
@@ -199,7 +269,7 @@
 
 					if(r_selected) {
 						lines[r_selected].visible = false;
-						changeOpacity(r_selected, 0.2);
+						changeOpacity(r_selected, opacity_low);
 					
 					}
 
@@ -253,7 +323,7 @@
 
 				if(!r_clicked & r_selected) {
 					lines[r_selected].visible = false;
-					changeOpacity(r_selected,0.2);
+					changeOpacity(r_selected,opacity_low);
 				}
 
 				pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
@@ -277,7 +347,7 @@
 
 					if(r_clicked & r_clicked!=index) {
 						lines[r_clicked].visible = false;
-						changeOpacity(r_clicked,0.2);
+						changeOpacity(r_clicked,opacity_low);
 					}
 
 					lines[index].visible = true;
@@ -315,6 +385,8 @@
 
 		</script>
 		<button type="button" id="clear_button">Clear</button>
+
+
 
 	</body>
 </html>
