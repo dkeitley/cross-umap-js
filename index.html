@@ -57,14 +57,12 @@
 			function init() {
 
 				document.getElementById("clear_button").addEventListener ("click", deselect, false);
+				const sprite = new THREE.TextureLoader().load( 'res/disc.png' );
 
 				scene = new THREE.Scene();
 				camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 
-				const sprite = new THREE.TextureLoader().load( 'res/disc.png' );
-
-
-				// Load rabbit nhoods
+				// Load rabbit nhoods...
 				const r_data = d3.tsv("data/rabbit_nhoods.tsv").then(data => {
 					data.forEach(d => {
 						d.umapX = Number(d.umapX);
@@ -81,16 +79,21 @@
 
 					})
 
+					// Compute mean of points
 					r_mean.push(d3.mean(data, d => d.umapX)-20);
 					r_mean.push(d3.mean(data, d => d.umapY));
 					r_mean.push(d3.mean(data, d => d.umapZ));
 
+
+					// Create threejs points
 					const r_geometry = new THREE.BufferGeometry();
 					r_geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( r_positions, 3 ) );
 					r_geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( r_colours, 3 ) );
 					r_geometry.computeBoundingSphere();
-					//const r_material = new THREE.PointsMaterial( { size:0.3,vertexColors:true} );
-					const r_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,map:sprite,transparent: true,alphaTest: opacity_low} );
+
+					const r_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,
+						map:sprite,transparent: true,alphaTest: opacity_low} );
+
 					r_points = new THREE.Points(r_geometry,r_material);
 					scene.add( r_points );
 
@@ -98,7 +101,7 @@
 				});
 
 
-				// Load mouse nhoods
+				// Load mouse nhoods...
 				const m_data = d3.tsv("data/mouse_nhoods.tsv").then(data => {
 					data.forEach(d => {
 						d.umapX = Number(d.umapX);
@@ -133,7 +136,7 @@
 				});
 
 
-				// Only after data loaded...
+				// Load neighbour mappings...
 				Promise.all([r_data,m_data]).then((values) => {
 					const load_sim = d3.json("data/nhood_sim.json").then(nhoods => {
 						nhood_sim=nhoods;
@@ -150,7 +153,7 @@
 					    		new THREE.LineBasicMaterial()
 					 		);
 
-							// For each neighbour neighbourhood
+							// For each mouse neighbour of rabbit neighbourhood
 							for(var i in nhood.index) {
 								var nn = nhood.index[i] -1;
 								line_points.push(new THREE.Vector3(r_points.geometry.attributes.position.getX(k),
@@ -159,7 +162,6 @@
 								line_points.push(new THREE.Vector3(m_points.geometry.attributes.position.getX(nn),
 								m_points.geometry.attributes.position.getY(nn),m_points.geometry.attributes.position.getZ(nn)));
 								line_geometry.setFromPoints(line_points);
-
 							}
 
 							line_geometry.verticesNeedUpdate = true;
@@ -168,25 +170,22 @@
 							scene.add(line);
 
 							k = k + 1;
-
 						}
-
 					});
-					
 				});
 
 
+				// Add ambient light
 				const light = new THREE.AmbientLight(0xffffff);
 				scene.add(light);
-				
 
+				// Add text labels
 				Promise.all([r_data,m_data]).then((values) => {
-					console.log(r_mean);
-					loadFont("Rabbit", r_mean[0], 20, r_mean[2]);
-					loadFont("Mouse", m_mean[0]-2, 15, m_mean[2]);
+					// TODO: Need smarter way to position text relative to points
+					createText("Rabbit", r_mean[0], 20, r_mean[2]);
+					createText("Mouse", m_mean[0]-2, 15, m_mean[2]);
 				})
 				
-				//createText("Rabbit", )
 				
 				renderer = new THREE.WebGLRenderer();
 				renderer.setPixelRatio( window.devicePixelRatio );
@@ -201,14 +200,13 @@
 
 			}
 
-			function loadFont(text,x,y,z) {
+
+			// Loads helvetica font 
+			function createText(text,x,y,z) {
 				const loader = new FontLoader();
 				loader.load( '/res/' + "helvetiker" + '_' + "regular" + '.typeface.json', function ( response ) {
-
 					var font = response;
-					console.log(font);
-					createText(text,x,y,z,font);
-
+					addText(text,x,y,z,font);
 					return(font)
 
 				} );
@@ -216,21 +214,21 @@
 			}
 
 
-			function createText(text,x,y,z,font) {
+			// Builds text geometry and adds to scene
+			function addText(text,x,y,z,font) {
 
 				var text_geo = new TextGeometry( text ,{font:font,
 					size:2,
 					height: 0.5,
 					curveSegments: 4,
-
 					bevelEnabled: false});
+
 				text_geo.computeBoundingBox();
 				
 				var materials = [
 					new THREE.MeshPhongMaterial( { color: 0xfffffff, flatShading: true } ), // front
 					new THREE.MeshPhongMaterial( { color: 0x808080  } ) // side
 				];
-
 
 				var text_mesh = new THREE.Mesh( text_geo, materials );
 
@@ -239,8 +237,8 @@
 				text_mesh.position.z = z;
 
 				scene.add(text_mesh);
-
 			}
+
 
 
 			function changeOpacity(index,opacity) {
@@ -252,25 +250,21 @@
 						m_points.geometry.attributes.color.getX(m_index), 
 						m_points.geometry.attributes.color.getY(m_index), 
 						m_points.geometry.attributes.color.getZ(m_index),opacity); 
-				}
-						
-
+				}		
 			}
 
 			
 
-			// Raycast when we click the mouse
+			
 			function onHover(event) {
 				event.preventDefault();
 
-				//console.log(r_points);
 
 				if(!r_clicked) {
 
 					if(r_selected) {
 						lines[r_selected].visible = false;
 						changeOpacity(r_selected, opacity_low);
-					
 					}
 
 					pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
@@ -280,42 +274,30 @@
 					var hits;
 					raycaster.setFromCamera(pointer, scene.userData.camera);
 
-					// Raycast to single object
+					// Raycast to single point
 					hits = raycaster.intersectObject(r_points, false);
 
-					// Raycast to multiple objects
-					//hits = raygun.intersectObjects([myTargetObect, myTargetObect2]);
-					
 
 					// Run if we have intersections
 					if (hits.length > 0) {
-
-						// Get lines associated with point
 						var index = hits[0].index;
-						var cellX = r_points.geometry.attributes.position.getX(index);
-						var cellY = r_points.geometry.attributes.position.getY(index);
-						var cellZ = r_points.geometry.attributes.position.getZ(index);
-
-						lines[index].visible = true;
+						lines[index].visible = true; // Get lines associated with point
 						changeOpacity(index,1);
 						
-
-
-
+						// TODO: Change line colour
 						//var test = new THREE.Color(d3.interpolateViridis(nhood_sim[sim_index].sim[0]));
 						//consoleconsole.log(test);
 						//console.log(lines[index]);
 						//lines[index].geometry.attributes.color.setXYZ(test);
 						
-
-						
 						r_selected = index;
-
 						
 					 renderer.render(scene, scene.userData.camera);
+
 					}
 				}
 			}
+
 
 
 			function onClick(event) {
@@ -336,20 +318,17 @@
 				// Raycast to single object
 				hits = raycaster.intersectObject(r_points, false);
 
-
 				// Run if we have intersections
 				if (hits.length > 0) {
-
-					
-
-					// Get lines associated with point
 					var index = hits[0].index;
 
+					// Remove previously clicked mapping
 					if(r_clicked & r_clicked!=index) {
 						lines[r_clicked].visible = false;
 						changeOpacity(r_clicked,opacity_low);
 					}
 
+					// Show mapping
 					lines[index].visible = true;
 					changeOpacity(index,1);
 					r_clicked = index;
@@ -361,6 +340,7 @@
 			}
 
 
+			// Remove mapping currently being displayed
 			function deselect() {
 				if(r_clicked) {
 					lines[r_clicked].visible = false;
@@ -386,11 +366,7 @@
 		</script>
 		<button type="button" id="clear_button">Clear</button>
 
-
-
 	</body>
 </html>
-
-
 
 <!DOCTYPE html>
