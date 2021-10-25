@@ -49,10 +49,13 @@
 
 
 			const mnns = [];
-			const lines = [];
 
-			let r_selected;
-			let r_clicked;
+
+			const r_lines = [];
+			const m_lines = [];
+
+			let selected;
+			let clicked;
 
 			const r_mean = [];
 			const m_mean = [];
@@ -120,7 +123,14 @@
 
 						line_geometry.verticesNeedUpdate = true;
 						line.visible = false;
-						lines.push(line);
+
+
+						if(direction=="rm") {
+							r_lines.push(line);
+						} else {
+							m_lines.push(line);
+						}
+						
 						scene.add(line);
 
 						k = k + 1;
@@ -299,15 +309,30 @@
 
 
 			function changeNeighbourOpacity(index,opacity) {
-				var r_nhood =  Object.keys(nhood_sim)[index];
 
-				for(var i in nhood_sim[r_nhood].index) {
-					var m_index = nhood_sim[r_nhood].index[i] - 1;
-					m_points.geometry.attributes.color.setXYZW(m_index, 
-						m_points.geometry.attributes.color.getX(m_index), 
-						m_points.geometry.attributes.color.getY(m_index), 
-						m_points.geometry.attributes.color.getZ(m_index),opacity); 
-				}		
+				if(direction=="rm") {
+					var r_nhood =  Object.keys(nhood_sim)[index];
+
+					for(var i in nhood_sim[r_nhood].index) {
+						var m_index = nhood_sim[r_nhood].index[i] - 1;
+						m_points.geometry.attributes.color.setXYZW(m_index, 
+							m_points.geometry.attributes.color.getX(m_index), 
+							m_points.geometry.attributes.color.getY(m_index), 
+							m_points.geometry.attributes.color.getZ(m_index),opacity); 
+					}		
+				} else {
+					var m_nhood =  Object.keys(nhood_sim)[index];
+
+					for(var i in nhood_sim[m_nhood].index) {
+						var r_index = nhood_sim[m_nhood].index[i] - 1;
+						r_points.geometry.attributes.color.setXYZW(r_index, 
+							r_points.geometry.attributes.color.getX(r_index), 
+							r_points.geometry.attributes.color.getY(r_index), 
+							r_points.geometry.attributes.color.getZ(r_index),opacity); 
+					}		
+				}
+
+				
 			}
 
 			function changeOpacity(points,opacity) {
@@ -327,11 +352,13 @@
 				event.preventDefault();
 
 
-				if(!r_clicked) {
+				if(!clicked) {
 
-					if(r_selected) {
-						lines[r_selected].visible = false;
-						changeNeighbourOpacity(r_selected, opacity_low);
+					if(selected) {
+						if(direction=="rm") r_lines[selected].visible = false;
+						else m_lines[selected].visible = false;
+						
+						changeNeighbourOpacity(selected, opacity_low);
 					}
 
 					pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
@@ -342,15 +369,23 @@
 					raycaster.setFromCamera(pointer, scene.userData.camera);
 
 					// Raycast to single point
-					hits = raycaster.intersectObject(r_points, false);
-
-
+					if(direction=="rm") {
+						hits = raycaster.intersectObject(r_points, false);
+					} else {
+						hits = raycaster.intersectObject(m_points, false);
+					}
+					
 					// Run if we have intersections
 					if (hits.length > 0) {
 						var index = hits[0].index;
-						lines[index].visible = true; // Get lines associated with point
+
+						// Get lines associated with point
+						if(direction=="rm") {
+							r_lines[index].visible = true;
+						} else m_lines[index].visible = true;
+						 
 						changeNeighbourOpacity(index,1);
-						r_selected = index;
+						selected = index;
 						
 					 renderer.render(scene, scene.userData.camera);
 
@@ -363,9 +398,11 @@
 			function onClick(event) {
 				event.preventDefault();
 
-				if(!r_clicked & r_selected) {
-					lines[r_selected].visible = false;
-					changeNeighbourOpacity(r_selected,opacity_low);
+				if(!clicked & selected) {
+					if(direction=="rm") r_lines[selected].visible = false;
+					else m_lines[selected].visible = false;
+					
+					changeNeighbourOpacity(selected,opacity_low);
 				}
 
 				pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
@@ -375,23 +412,31 @@
 				var hits;
 				raycaster.setFromCamera(pointer, scene.userData.camera);
 
-				// Raycast to single object
-				hits = raycaster.intersectObject(r_points, false);
+				// Raycast to single point
+				if(direction=="rm") {
+					hits = raycaster.intersectObject(r_points, false);
+				} else {
+					hits = raycaster.intersectObject(m_points, false);
+				}
 
 				// Run if we have intersections
 				if (hits.length > 0) {
 					var index = hits[0].index;
 
 					// Remove previously clicked mapping
-					if(r_clicked & r_clicked!=index) {
-						lines[r_clicked].visible = false;
-						changeNeighbourOpacity(r_clicked,opacity_low);
+					if(clicked & clicked!=index) {
+						if(direction == "rm") r_lines[clicked].visible = false;
+						else m_lines[clicked].visible = false;
+						
+						changeNeighbourOpacity(clicked,opacity_low);
 					}
 
 					// Show mapping
-					lines[index].visible = true;
+					if(direction == "rm") r_lines[index].visible = true;
+					else m_lines[index].visible = true;
+
 					changeNeighbourOpacity(index,1);
-					r_clicked = index;
+					clicked = index;
 
 					
 				 renderer.render(scene, scene.userData.camera);
@@ -408,12 +453,12 @@
 			};
 
 			function changeDirection() {
-				var dir_selected = document.getElementById("dir_dropdown").value
-				if (dir_selected!= direction){
-					console.log("Changing direction to - " + dir_selected);
-					direction = dir_selected;
+				var diselected = document.getElementById("dir_dropdown").value
+				if (diselected!= direction){
+					console.log("Changing direction to - " + diselected);
+					direction = diselected;
 					
-					if(dir_selected == "mr") {
+					if(diselected == "mr") {
 
 						// change opacity
 						r_points.material._alphaTest = 0.175;
@@ -439,12 +484,9 @@
 
 					}
 
-					
-
-
-					console.log(r_points);
-					console.log(m_points);
-					//loadSim(direction);
+					//console.log(r_points);
+					//console.log(m_points);
+					loadSim(direction);
 
 				}
 
@@ -453,10 +495,11 @@
 
 			// Remove mapping currently being displayed
 			function deselect() {
-				if(r_clicked) {
-					lines[r_clicked].visible = false;
-					changeNeighbourOpacity(r_clicked,0.2);
-					r_clicked = undefined;
+				if(clicked) {
+					if(direction=="rm") r_lines[clicked].visible = false;
+					else m_lines[clicked].visible = false;
+					changeNeighbourOpacity(clicked,0.2);
+					clicked = undefined;
 				}
 			}
 
