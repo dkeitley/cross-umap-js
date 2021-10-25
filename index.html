@@ -137,7 +137,7 @@
 
 				scene = new THREE.Scene();
 				camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
-
+				
 				// Load rabbit nhoods...
 				r_data = d3.tsv("data/rabbit_nhoods.tsv").then(data => {
 					data.forEach(d => {
@@ -186,7 +186,7 @@
 				m_data = d3.tsv("data/mouse_nhoods.tsv").then(data => {
 					data.forEach(d => {
 						d.umapX = Number(d.umapX);
-						d.umapY = Number(d.umapY);
+						d.umapY = Number(d.umapY)+5;
 						d.umapZ = Number(d.umapZ);
 
 						d.faX = Number(d.faX)*20;
@@ -238,7 +238,7 @@
 				Promise.all([r_data,m_data]).then((values) => {
 					// TODO: Need smarter way to position text relative to points
 					createText("Rabbit", r_mean[0], 20, r_mean[2]);
-					createText("Mouse", m_mean[0]-2, 15, m_mean[2]);
+					createText("Mouse", m_mean[0]-5, 20, m_mean[2]);
 				})
 				
 				
@@ -251,7 +251,11 @@
 				scene.userData.camera = camera;
 
 				const controls = new OrbitControls( camera, renderer.domElement );
+				camera.position.set(8,12,35);
+				controls.target.set(3, 5, 0);
+				controls.update();
 				scene.userData.controls = controls;
+
 
 			}
 
