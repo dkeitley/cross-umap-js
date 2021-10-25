@@ -2,12 +2,20 @@
 <html>
 	<head>
 		<meta charset="utf-8">
-		<title>My first three.js app</title>
+		<title>Visualising Rabbit-Mouse similarity</title>
 		<style>
 			body { margin: 0; }
 		</style>
 	</head>
 	<body>
+
+		<select id="dir_dropdown">
+			<option value="rm">Rabbit-Mouse</option>
+			<option value="mr">Mouse-Rabbit</option>
+		</select>
+
+		<button type="button" id="clear_button">Clear</button>
+
 		<script src="https://d3js.org/d3.v7.min.js"></script>
 
 		<script type="module">
@@ -23,6 +31,8 @@
 
 			const raycaster = new THREE.Raycaster();
 			raycaster.params.Points.threshold = 0.1;
+
+			let r_data, m_data;
 
 			let r_points;
 			let m_points;
@@ -47,6 +57,11 @@
 			const r_mean = [];
 			const m_mean = [];
 
+			var direction="rm";
+
+			let sim_max;
+			let sim_min;
+
 			const opacity_low = 0.2;
 
 			const colour = new THREE.Color();
@@ -54,32 +69,101 @@
   							.interpolator(d3.interpolateViridis);
 
 
+  			function loadSim(direction="rm") {
+				const load_sim = d3.json("data/" + direction + "_nhood_sim.json").then(nhoods => {
+					nhood_sim=nhoods;
+
+					// TODO: Not sure if there's a way to avoid 2 loops
+					// Normalise colour range by finding min/max
+					var sims = [];
+					for(var key in nhoods) {
+						var nhood = nhoods[key];
+						sims.push(nhood.sim[0]);
+					}
+					sim_min = d3.min(sims);
+					sim_max = d3.max(sims);
+
+					var k=0
+					for(var key in nhoods) {
+						var nhood = nhoods[key];
+
+						const line_points = [];
+
+						// Create mapping lines
+						var line_geometry = new THREE.BufferGeometry();
+						const line = new THREE.LineSegments(
+				    		line_geometry,
+				    		new THREE.LineBasicMaterial({
+				    			color:new THREE.Color(d3.interpolateTurbo((nhood.sim[0]-sim_min)/(sim_max-sim_min))) 
+				    		})
+				 		);
+
+						// For each mapping
+						let r_index, m_index;
+						for(var i in nhood.index) {
+
+							if(direction=="rm") {
+								r_index = k;	
+								m_index = nhood.index[i] -1;
+							} else {
+								r_index = nhood.index[i] -1;	
+								m_index = k;
+							}
+
+							line_points.push(new THREE.Vector3(r_points.geometry.attributes.position.getX(r_index),
+							r_points.geometry.attributes.position.getY(r_index),r_points.geometry.attributes.position.getZ(r_index)));
+
+							line_points.push(new THREE.Vector3(m_points.geometry.attributes.position.getX(m_index),
+							m_points.geometry.attributes.position.getY(m_index),m_points.geometry.attributes.position.getZ(m_index)));
+							line_geometry.setFromPoints(line_points);
+						}
+
+						line_geometry.verticesNeedUpdate = true;
+						line.visible = false;
+						lines.push(line);
+						scene.add(line);
+
+						k = k + 1;
+					}
+
+				});
+
+			}
+
+
 			function init() {
 
-				document.getElementById("clear_button").addEventListener ("click", deselect, false);
+				document.getElementById("clear_button").addEventListener("click", deselect, false);
+				document.getElementById("dir_dropdown").addEventListener("change", changeDirection);
+
 				const sprite = new THREE.TextureLoader().load( 'res/disc.png' );
 
 				scene = new THREE.Scene();
 				camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
 
 				// Load rabbit nhoods...
-				const r_data = d3.tsv("data/rabbit_nhoods.tsv").then(data => {
+				r_data = d3.tsv("data/rabbit_nhoods.tsv").then(data => {
 					data.forEach(d => {
+
 						d.umapX = Number(d.umapX);
 						d.umapY = Number(d.umapY);
 						d.umapZ = Number(d.umapZ);
 
-						d.colour = d.colour;
+						d.faX = Number(d.faX)*20;
+						d.faY = Number(d.faY)*20;
+
 						d.celltype = d.celltype;
+						d.colour = d.colour;
 
 						colour.set(d.colour);
+						
 						r_positions.push(d.umapX-20,d.umapY,d.umapZ);
-						//rabbit_celltypes.push(d.celltype);
-						r_colours.push(colour.r,colour.g,colour.b);
+						//r_positions.push(d.faX-20,d.faY,0);
+						r_colours.push(colour.r,colour.g,colour.b,1);
 
 					})
 
-					// Compute mean of points
+					// Used to position text
 					r_mean.push(d3.mean(data, d => d.umapX)-20);
 					r_mean.push(d3.mean(data, d => d.umapY));
 					r_mean.push(d3.mean(data, d => d.umapZ));
@@ -88,11 +172,11 @@
 					// Create threejs points
 					const r_geometry = new THREE.BufferGeometry();
 					r_geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( r_positions, 3 ) );
-					r_geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( r_colours, 3 ) );
+					r_geometry.setAttribute( 'color', new THREE.Float32BufferAttribute( r_colours, 4 ) );
 					r_geometry.computeBoundingSphere();
 
 					const r_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,
-						map:sprite,transparent: true,alphaTest: opacity_low} );
+						map:sprite,transparent: true,alphaTest: 0.8} );
 
 					r_points = new THREE.Points(r_geometry,r_material);
 					scene.add( r_points );
@@ -102,21 +186,26 @@
 
 
 				// Load mouse nhoods...
-				const m_data = d3.tsv("data/mouse_nhoods.tsv").then(data => {
+				m_data = d3.tsv("data/mouse_nhoods.tsv").then(data => {
 					data.forEach(d => {
 						d.umapX = Number(d.umapX);
 						d.umapY = Number(d.umapY);
 						d.umapZ = Number(d.umapZ);
 
-						d.colour = d.colour;
+						d.faX = Number(d.faX)*20;
+						d.faY = Number(d.faY)*20;
+
 						d.celltype = d.celltype;
+						d.colour = d.colour;
 
 						colour.set(d.colour);
 						m_positions.push(d.umapX+20,d.umapY,d.umapZ);
+						//m_positions.push(d.faX+20,d.faY,0);
 						m_colours.push(colour.r,colour.g,colour.b,opacity_low);
 
 					})
 
+					// Used to position text
 					m_mean.push(d3.mean(data, d => d.umapX)+20);
 					m_mean.push(d3.mean(data, d => d.umapY));
 					m_mean.push(d3.mean(data, d => d.umapZ));
@@ -128,50 +217,18 @@
 
 					m_geometry.computeBoundingSphere();
 					//const m_material = new THREE.PointsMaterial( { size:0.3,vertexColors:true} );
-					const m_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,map:sprite,transparent: true,alphaTest: 0.1} );
+					const m_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,map:sprite,transparent: true,alphaTest: 0.175} );
 					m_points = new THREE.Points(m_geometry,m_material);
 					scene.add( m_points );
 
 
 				});
 
+				
 
 				// Load neighbour mappings...
 				Promise.all([r_data,m_data]).then((values) => {
-					const load_sim = d3.json("data/nhood_sim.json").then(nhoods => {
-						nhood_sim=nhoods;
-						var k=0
-						for(var key in nhoods) {
-							var nhood = nhoods[key];
-
-							const line_points = [];
-
-							var line_geometry = new THREE.BufferGeometry();
-							//line_geometry.setAttribute( 'color', new THREE.Float32BufferAttribute(,1 ) );
-							const line = new THREE.LineSegments(
-					    		line_geometry,
-					    		new THREE.LineBasicMaterial()
-					 		);
-
-							// For each mouse neighbour of rabbit neighbourhood
-							for(var i in nhood.index) {
-								var nn = nhood.index[i] -1;
-								line_points.push(new THREE.Vector3(r_points.geometry.attributes.position.getX(k),
-								r_points.geometry.attributes.position.getY(k),r_points.geometry.attributes.position.getZ(k)));
-
-								line_points.push(new THREE.Vector3(m_points.geometry.attributes.position.getX(nn),
-								m_points.geometry.attributes.position.getY(nn),m_points.geometry.attributes.position.getZ(nn)));
-								line_geometry.setFromPoints(line_points);
-							}
-
-							line_geometry.verticesNeedUpdate = true;
-							line.visible = false;
-							lines.push(line);
-							scene.add(line);
-
-							k = k + 1;
-						}
-					});
+					loadSim();
 				});
 
 
@@ -241,7 +298,7 @@
 
 
 
-			function changeOpacity(index,opacity) {
+			function changeNeighbourOpacity(index,opacity) {
 				var r_nhood =  Object.keys(nhood_sim)[index];
 
 				for(var i in nhood_sim[r_nhood].index) {
@@ -251,6 +308,16 @@
 						m_points.geometry.attributes.color.getY(m_index), 
 						m_points.geometry.attributes.color.getZ(m_index),opacity); 
 				}		
+			}
+
+			function changeOpacity(points,opacity) {
+				for(let i=0; i< points.geometry.attributes.color.count; i++) {
+					points.geometry.attributes.color.setXYZW(i, 
+						points.geometry.attributes.color.getX(i), 
+						points.geometry.attributes.color.getY(i), 
+						points.geometry.attributes.color.getZ(i),opacity); 
+				}
+				points.geometry.attributes.color.needsUpdate = true;
 			}
 
 			
@@ -264,7 +331,7 @@
 
 					if(r_selected) {
 						lines[r_selected].visible = false;
-						changeOpacity(r_selected, opacity_low);
+						changeNeighbourOpacity(r_selected, opacity_low);
 					}
 
 					pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
@@ -282,14 +349,7 @@
 					if (hits.length > 0) {
 						var index = hits[0].index;
 						lines[index].visible = true; // Get lines associated with point
-						changeOpacity(index,1);
-						
-						// TODO: Change line colour
-						//var test = new THREE.Color(d3.interpolateViridis(nhood_sim[sim_index].sim[0]));
-						//consoleconsole.log(test);
-						//console.log(lines[index]);
-						//lines[index].geometry.attributes.color.setXYZ(test);
-						
+						changeNeighbourOpacity(index,1);
 						r_selected = index;
 						
 					 renderer.render(scene, scene.userData.camera);
@@ -305,7 +365,7 @@
 
 				if(!r_clicked & r_selected) {
 					lines[r_selected].visible = false;
-					changeOpacity(r_selected,opacity_low);
+					changeNeighbourOpacity(r_selected,opacity_low);
 				}
 
 				pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
@@ -325,16 +385,67 @@
 					// Remove previously clicked mapping
 					if(r_clicked & r_clicked!=index) {
 						lines[r_clicked].visible = false;
-						changeOpacity(r_clicked,opacity_low);
+						changeNeighbourOpacity(r_clicked,opacity_low);
 					}
 
 					// Show mapping
 					lines[index].visible = true;
-					changeOpacity(index,1);
+					changeNeighbourOpacity(index,1);
 					r_clicked = index;
 
 					
 				 renderer.render(scene, scene.userData.camera);
+				}
+
+			}
+
+			const animate = function () {
+				requestAnimationFrame( animate );
+				window.addEventListener('mousemove', onHover, false);
+				window.addEventListener('click', onClick, false);
+				Promise.all([m_data]).then((values) => {m_points.geometry.attributes.color.needsUpdate = true;});
+				renderer.render( scene, camera );
+			};
+
+			function changeDirection() {
+				var dir_selected = document.getElementById("dir_dropdown").value
+				if (dir_selected!= direction){
+					console.log("Changing direction to - " + dir_selected);
+					direction = dir_selected;
+					
+					if(dir_selected == "mr") {
+
+						// change opacity
+						r_points.material._alphaTest = 0.175;
+						r_points.material.needsUpdate = true;
+						changeOpacity(r_points,opacity_low);
+
+						m_points.material._alphaTest = 0.8;
+						m_points.material.needsUpdate = true;
+						changeOpacity(m_points,1);
+
+						
+
+					} else{
+
+						// change opacity
+						m_points.material._alphaTest = 0.175;
+						m_points.material.needsUpdate = true;
+						changeOpacity(m_points,opacity_low);
+
+						r_points.material._alphaTest = 0.8;
+						r_points.material.needsUpdate = true;
+						changeOpacity(r_points,1);
+
+					}
+
+					
+
+
+					console.log(r_points);
+					console.log(m_points);
+					//loadSim(direction);
+
 				}
 
 			}
@@ -344,19 +455,13 @@
 			function deselect() {
 				if(r_clicked) {
 					lines[r_clicked].visible = false;
-					changeOpacity(r_clicked,0.2);
+					changeNeighbourOpacity(r_clicked,0.2);
 					r_clicked = undefined;
 				}
 			}
 
 
-			const animate = function () {
-				requestAnimationFrame( animate );
-				window.addEventListener('mousemove', onHover, false);
-				window.addEventListener('click', onClick, false);
-				m_points.geometry.attributes.color.needsUpdate = true;
-				renderer.render( scene, camera );
-			};
+			
 
 
 			init();
@@ -364,8 +469,7 @@
 			
 
 		</script>
-		<button type="button" id="clear_button">Clear</button>
-
+		
 	</body>
 </html>
 
