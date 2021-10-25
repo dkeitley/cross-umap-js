@@ -10,8 +10,8 @@
 	<body>
 
 		<select id="dir_dropdown">
-			<option value="rm">Rabbit-Mouse</option>
-			<option value="mr">Mouse-Rabbit</option>
+			<option value=0>Rabbit-Mouse</option>
+			<option value=1>Mouse-Rabbit</option>
 		</select>
 
 		<button type="button" id="clear_button">Clear</button>
@@ -45,14 +45,8 @@
 			const m_positions = [];
 			const m_colours = [];
 
-			let nhood_sim;
-
-
-			const mnns = [];
-
-
-			const r_lines = [];
-			const m_lines = [];
+			var sim = [];
+			var lines = [[],[]];			
 
 			let selected;
 			let clicked;
@@ -60,7 +54,8 @@
 			const r_mean = [];
 			const m_mean = [];
 
-			var direction="rm";
+			var direction=0;
+			const dir_symbols=["rm","mr"];
 
 			let sim_max;
 			let sim_min;
@@ -72,9 +67,10 @@
   							.interpolator(d3.interpolateViridis);
 
 
-  			function loadSim(direction="rm") {
-				const load_sim = d3.json("data/" + direction + "_nhood_sim.json").then(nhoods => {
-					nhood_sim=nhoods;
+  			function loadSim(direction=0) {
+
+				const load_sim = d3.json("data/" + dir_symbols[direction] + "_nhood_sim.json").then(nhoods => {
+					sim[direction]=nhoods;
 
 					// TODO: Not sure if there's a way to avoid 2 loops
 					// Normalise colour range by finding min/max
@@ -105,7 +101,7 @@
 						let r_index, m_index;
 						for(var i in nhood.index) {
 
-							if(direction=="rm") {
+							if(direction==0) {
 								r_index = k;	
 								m_index = nhood.index[i] -1;
 							} else {
@@ -123,14 +119,7 @@
 
 						line_geometry.verticesNeedUpdate = true;
 						line.visible = false;
-
-
-						if(direction=="rm") {
-							r_lines.push(line);
-						} else {
-							m_lines.push(line);
-						}
-						
+						lines[direction].push(line);
 						scene.add(line);
 
 						k = k + 1;
@@ -238,7 +227,8 @@
 
 				// Load neighbour mappings...
 				Promise.all([r_data,m_data]).then((values) => {
-					loadSim();
+					loadSim(0);
+					loadSim(1);
 				});
 
 
@@ -310,21 +300,21 @@
 
 			function changeNeighbourOpacity(index,opacity) {
 
-				if(direction=="rm") {
-					var r_nhood =  Object.keys(nhood_sim)[index];
+				if(direction==0) {
+					var r_nhood =  Object.keys(sim[direction])[index];
 
-					for(var i in nhood_sim[r_nhood].index) {
-						var m_index = nhood_sim[r_nhood].index[i] - 1;
+					for(var i in sim[direction][r_nhood].index) {
+						var m_index = sim[direction][r_nhood].index[i] - 1;
 						m_points.geometry.attributes.color.setXYZW(m_index, 
 							m_points.geometry.attributes.color.getX(m_index), 
 							m_points.geometry.attributes.color.getY(m_index), 
 							m_points.geometry.attributes.color.getZ(m_index),opacity); 
 					}		
 				} else {
-					var m_nhood =  Object.keys(nhood_sim)[index];
+					var m_nhood =  Object.keys(sim[direction])[index];
 
-					for(var i in nhood_sim[m_nhood].index) {
-						var r_index = nhood_sim[m_nhood].index[i] - 1;
+					for(var i in sim[direction][m_nhood].index) {
+						var r_index = sim[direction][m_nhood].index[i] - 1;
 						r_points.geometry.attributes.color.setXYZW(r_index, 
 							r_points.geometry.attributes.color.getX(r_index), 
 							r_points.geometry.attributes.color.getY(r_index), 
@@ -355,9 +345,7 @@
 				if(!clicked) {
 
 					if(selected) {
-						if(direction=="rm") r_lines[selected].visible = false;
-						else m_lines[selected].visible = false;
-						
+						lines[direction][selected].visible = false;
 						changeNeighbourOpacity(selected, opacity_low);
 					}
 
@@ -369,7 +357,7 @@
 					raycaster.setFromCamera(pointer, scene.userData.camera);
 
 					// Raycast to single point
-					if(direction=="rm") {
+					if(direction==0) {
 						hits = raycaster.intersectObject(r_points, false);
 					} else {
 						hits = raycaster.intersectObject(m_points, false);
@@ -380,10 +368,7 @@
 						var index = hits[0].index;
 
 						// Get lines associated with point
-						if(direction=="rm") {
-							r_lines[index].visible = true;
-						} else m_lines[index].visible = true;
-						 
+						lines[direction][index].visible = true;
 						changeNeighbourOpacity(index,1);
 						selected = index;
 						
@@ -399,9 +384,7 @@
 				event.preventDefault();
 
 				if(!clicked & selected) {
-					if(direction=="rm") r_lines[selected].visible = false;
-					else m_lines[selected].visible = false;
-					
+					lines[direction][selected].visible = false;					
 					changeNeighbourOpacity(selected,opacity_low);
 				}
 
@@ -413,7 +396,7 @@
 				raycaster.setFromCamera(pointer, scene.userData.camera);
 
 				// Raycast to single point
-				if(direction=="rm") {
+				if(direction==0) {
 					hits = raycaster.intersectObject(r_points, false);
 				} else {
 					hits = raycaster.intersectObject(m_points, false);
@@ -425,16 +408,12 @@
 
 					// Remove previously clicked mapping
 					if(clicked & clicked!=index) {
-						if(direction == "rm") r_lines[clicked].visible = false;
-						else m_lines[clicked].visible = false;
-						
+						lines[direction][clicked].visible = false;						
 						changeNeighbourOpacity(clicked,opacity_low);
 					}
 
 					// Show mapping
-					if(direction == "rm") r_lines[index].visible = true;
-					else m_lines[index].visible = true;
-
+					lines[direction][index].visible = true;
 					changeNeighbourOpacity(index,1);
 					clicked = index;
 
@@ -455,10 +434,9 @@
 			function changeDirection() {
 				var diselected = document.getElementById("dir_dropdown").value
 				if (diselected!= direction){
-					console.log("Changing direction to - " + diselected);
 					direction = diselected;
 					
-					if(diselected == "mr") {
+					if(diselected == 1) {
 
 						// change opacity
 						r_points.material._alphaTest = 0.175;
@@ -468,8 +446,6 @@
 						m_points.material._alphaTest = 0.8;
 						m_points.material.needsUpdate = true;
 						changeOpacity(m_points,1);
-
-						
 
 					} else{
 
@@ -481,12 +457,10 @@
 						r_points.material._alphaTest = 0.8;
 						r_points.material.needsUpdate = true;
 						changeOpacity(r_points,1);
-
 					}
 
-					//console.log(r_points);
-					//console.log(m_points);
-					loadSim(direction);
+					selected = undefined;
+					clicked = undefined;
 
 				}
 
@@ -496,15 +470,12 @@
 			// Remove mapping currently being displayed
 			function deselect() {
 				if(clicked) {
-					if(direction=="rm") r_lines[clicked].visible = false;
-					else m_lines[clicked].visible = false;
+					lines[direction][clicked].visible = false;
 					changeNeighbourOpacity(clicked,0.2);
 					clicked = undefined;
 				}
 			}
 
-
-			
 
 
 			init();
