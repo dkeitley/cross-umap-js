@@ -34,9 +34,6 @@
 
 			let r_data, m_data;
 
-			let r_points;
-			let m_points;
-
 			const r_ids = [];
 			const r_positions = [];
 			const r_colours = [];
@@ -46,7 +43,8 @@
 			const m_colours = [];
 
 			var sim = [];
-			var lines = [[],[]];			
+			var lines = [[],[]];
+			var points = [];		
 
 			let selected;
 			let clicked;
@@ -109,11 +107,11 @@
 								m_index = k;
 							}
 
-							line_points.push(new THREE.Vector3(r_points.geometry.attributes.position.getX(r_index),
-							r_points.geometry.attributes.position.getY(r_index),r_points.geometry.attributes.position.getZ(r_index)));
+							line_points.push(new THREE.Vector3(points[0].geometry.attributes.position.getX(r_index),
+							points[0].geometry.attributes.position.getY(r_index),points[0].geometry.attributes.position.getZ(r_index)));
 
-							line_points.push(new THREE.Vector3(m_points.geometry.attributes.position.getX(m_index),
-							m_points.geometry.attributes.position.getY(m_index),m_points.geometry.attributes.position.getZ(m_index)));
+							line_points.push(new THREE.Vector3(points[1].geometry.attributes.position.getX(m_index),
+							points[1].geometry.attributes.position.getY(m_index),points[1].geometry.attributes.position.getZ(m_index)));
 							line_geometry.setFromPoints(line_points);
 						}
 
@@ -177,8 +175,8 @@
 					const r_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,
 						map:sprite,transparent: true,alphaTest: 0.8} );
 
-					r_points = new THREE.Points(r_geometry,r_material);
-					scene.add( r_points );
+					points[0] = new THREE.Points(r_geometry,r_material);
+					scene.add( points[0] );
 
 
 				});
@@ -217,8 +215,8 @@
 					m_geometry.computeBoundingSphere();
 					//const m_material = new THREE.PointsMaterial( { size:0.3,vertexColors:true} );
 					const m_material = new THREE.PointsMaterial( { size:0.7,vertexColors:true,map:sprite,transparent: true,alphaTest: 0.175} );
-					m_points = new THREE.Points(m_geometry,m_material);
-					scene.add( m_points );
+					points[1] = new THREE.Points(m_geometry,m_material);
+					scene.add( points[1] );
 
 
 				});
@@ -299,33 +297,19 @@
 
 
 			function changeNeighbourOpacity(index,opacity) {
-
-				if(direction==0) {
-					var r_nhood =  Object.keys(sim[direction])[index];
-
-					for(var i in sim[direction][r_nhood].index) {
-						var m_index = sim[direction][r_nhood].index[i] - 1;
-						m_points.geometry.attributes.color.setXYZW(m_index, 
-							m_points.geometry.attributes.color.getX(m_index), 
-							m_points.geometry.attributes.color.getY(m_index), 
-							m_points.geometry.attributes.color.getZ(m_index),opacity); 
-					}		
-				} else {
-					var m_nhood =  Object.keys(sim[direction])[index];
-
-					for(var i in sim[direction][m_nhood].index) {
-						var r_index = sim[direction][m_nhood].index[i] - 1;
-						r_points.geometry.attributes.color.setXYZW(r_index, 
-							r_points.geometry.attributes.color.getX(r_index), 
-							r_points.geometry.attributes.color.getY(r_index), 
-							r_points.geometry.attributes.color.getZ(r_index),opacity); 
-					}		
+				var nhood =  Object.keys(sim[direction])[index];
+				for(var i in sim[direction][nhood].index) {
+					var nh_index = sim[direction][nhood].index[i] - 1;
+					points[1-direction].geometry.attributes.color.setXYZW(nh_index, 
+							points[1-direction].geometry.attributes.color.getX(nh_index), 
+							points[1-direction].geometry.attributes.color.getY(nh_index), 
+							points[1-direction].geometry.attributes.color.getZ(nh_index),opacity); 
 				}
-
-				
+				points[1-direction].geometry.attributes.color.needsUpdate = true;		
 			}
+			
 
-			function changeOpacity(points,opacity) {
+			function changeDatasetOpacity(points,opacity) {
 				for(let i=0; i< points.geometry.attributes.color.count; i++) {
 					points.geometry.attributes.color.setXYZW(i, 
 						points.geometry.attributes.color.getX(i), 
@@ -357,11 +341,8 @@
 					raycaster.setFromCamera(pointer, scene.userData.camera);
 
 					// Raycast to single point
-					if(direction==0) {
-						hits = raycaster.intersectObject(r_points, false);
-					} else {
-						hits = raycaster.intersectObject(m_points, false);
-					}
+					hits = raycaster.intersectObject(points[direction], false);
+					
 					
 					// Run if we have intersections
 					if (hits.length > 0) {
@@ -396,12 +377,8 @@
 				raycaster.setFromCamera(pointer, scene.userData.camera);
 
 				// Raycast to single point
-				if(direction==0) {
-					hits = raycaster.intersectObject(r_points, false);
-				} else {
-					hits = raycaster.intersectObject(m_points, false);
-				}
-
+				hits = raycaster.intersectObject(points[direction], false);
+				
 				// Run if we have intersections
 				if (hits.length > 0) {
 					var index = hits[0].index;
@@ -427,7 +404,7 @@
 				requestAnimationFrame( animate );
 				window.addEventListener('mousemove', onHover, false);
 				window.addEventListener('click', onClick, false);
-				Promise.all([m_data]).then((values) => {m_points.geometry.attributes.color.needsUpdate = true;});
+				Promise.all([m_data]).then((values) => {points[1].geometry.attributes.color.needsUpdate = true;});
 				renderer.render( scene, camera );
 			};
 
@@ -439,24 +416,24 @@
 					if(diselected == 1) {
 
 						// change opacity
-						r_points.material._alphaTest = 0.175;
-						r_points.material.needsUpdate = true;
-						changeOpacity(r_points,opacity_low);
+						points[0].material._alphaTest = 0.175;
+						points[0].material.needsUpdate = true;
+						changeDatasetOpacity(points[0],opacity_low);
 
-						m_points.material._alphaTest = 0.8;
-						m_points.material.needsUpdate = true;
-						changeOpacity(m_points,1);
+						points[1].material._alphaTest = 0.8;
+						points[1].material.needsUpdate = true;
+						changeDatasetOpacity(points[1],1);
 
 					} else{
 
 						// change opacity
-						m_points.material._alphaTest = 0.175;
-						m_points.material.needsUpdate = true;
-						changeOpacity(m_points,opacity_low);
+						points[1].material._alphaTest = 0.175;
+						points[1].material.needsUpdate = true;
+						changeDatasetOpacity(points[1],opacity_low);
 
-						r_points.material._alphaTest = 0.8;
-						r_points.material.needsUpdate = true;
-						changeOpacity(r_points,1);
+						points[0].material._alphaTest = 0.8;
+						points[0].material.needsUpdate = true;
+						changeDatasetOpacity(points[0],1);
 					}
 
 					selected = undefined;
